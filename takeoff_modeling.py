@@ -8,6 +8,7 @@ days_taken = []
 def generate_takeoff_start():
     # skills are research, eng, strategy, hacking, persuasion
     # for simpllicitly let's treat them all as the same for now
+    # Numbers come from https://docs.google.com/spreadsheets/d/1VdiVeaTHimvz5SzDyghwxsD1D4tcr7KZULL0KiOeDPk/edit#gid=0
     log_average_capabilities = np.random.normal(.54, .16)
     average_exp_capabilites = 10 ** log_average_capabilities
     rand_vars = [np.random.uniform() for _ in range(5)]
@@ -18,6 +19,7 @@ def generate_takeoff_start():
 def generate_takeoff_end():
     # skills are research, eng, strategy, hacking, persuasion
     # for simpllicitly let's treat them all as the same for now
+    # Numbers come from https://docs.google.com/spreadsheets/d/1VdiVeaTHimvz5SzDyghwxsD1D4tcr7KZULL0KiOeDPk/edit#gid=0
     log_average_capabilities = np.random.normal(1.41, .60)
     average_exp_capabilites = 10 ** log_average_capabilities
     rand_vars = [np.random.uniform() for _ in range(5)]
