@@ -2,7 +2,18 @@ import numpy as np
 import math
 import statistics
 import pydantic
-from typing import Optional
+from typing import Optional, Literal, List, Dict
+
+
+TaskDescription = Literal[
+    "Scientific research",
+    "Software engineering",
+    "Hardware engineering",
+    "Physical engineering",
+    "Strategy",
+    "Hacking",
+    "Persuasion",
+]
 
 # made up parameters = numbers I made up based on my rough beliefs, can adjust based on your own beliefs and see how takeoff distribution changes
 class MadeUpParameters(pydantic.BaseModel):
@@ -22,9 +33,53 @@ class MadeUpParameters(pydantic.BaseModel):
     # 0 = perfectly correlated, larger numbers mean higher stdev when generating this parameter for each task
     default_years_to_cross_human_range_stdev_across_tasks: float = 0.3
 
+    # how much variation there is between starting capability level across tasks
+    starting_capability_stdev: float = 0.3
+
     iteration_speed: str = (
         "DAY"  # how fast do we assume iteration is? can be DAY, WEEK or MONTH
     )
+
+    # See https://docs.google.com/spreadsheets/d/1u6SsZcnAjahh7wsh0cbldVaXSHXbFLarBeu7t4jyf7E/edit#gid=0 for context
+    takeoff_startpoint_conditions: List[Dict[TaskDescription, float]] = [
+        {"Scientific research": 1.1, "Software engineering": 0.99, "Strategy": 0.95},
+        {"Persuasion": 1},
+        {"Hacking": 1.1},
+        {"Strategy": 1},
+        {
+            "Scientific research": 1,
+            "Software engineering": 1,
+            "Hardware engineering": 1,
+        },
+        {"Physical engineering": 1},
+    ]
+    alignment_research_startpoint_conditions: List[Dict[TaskDescription, float]] = [
+        {"Scientific research": 1.1, "Software engineering": 0.99, "Strategy": 0.95},
+    ]
+    takeoff_endpoint_conditions: List[Dict[TaskDescription, float]] = [
+        {"Physical engineering": 3, "Strategy": 1.5},
+        {"Strategy": 2, "Persuasion": 2},
+        {"Strategy": 2, "Hacking": 2},
+        {
+            "Scientific research": 1.5,
+            "Software engineering": 1.5,
+            "Hardware engineering": 1.5,
+            "Physical engineering": 1.5,
+            "Strategy": 1.7,
+            "Hacking": 1.5,
+            "Persuasion": 1.7,
+        },
+        {
+            "Scientific research": 2,
+            "Software engineering": 2,
+            "Hardware engineering": 2,
+            "Physical engineering": 2,
+            "Strategy": 2,
+        },
+    ]
+
+    # How many simluations to run
+    N_SIMS = 100
 
     def __init__(
         self,
@@ -46,10 +101,8 @@ class MadeUpParameters(pydantic.BaseModel):
 
 
 class Task(pydantic.BaseModel):
-    description: str
-    capability: Optional[
-        float
-    ] = None  # 0 = 0th percentile human, 1 = 100th percentile human, outside 0-1 = roughly extrapolating from this
+    description: TaskDescription
+    capability: float = 0  # 0 = 0th percentile human, 1 = 100th percentile human, outside 0-1 = roughly extrapolating from this
     made_up_parameters: MadeUpParameters
     years_to_cross_human_range: Optional[
         float
@@ -58,10 +111,14 @@ class Task(pydantic.BaseModel):
     def __init__(
         self,
         made_up_parameters: MadeUpParameters,
+        capability: Optional[float] = None,
         **data,
     ):
         super().__init__(
             made_up_parameters=made_up_parameters,
+            capability=np.random.normal(
+                0, made_up_parameters.starting_capability_stdev
+            ),
             years_to_cross_human_range=max(
                 np.random.normal(
                     made_up_parameters.default_years_to_cross_human_range,
@@ -77,122 +134,104 @@ class Task(pydantic.BaseModel):
         return 1 / (self.years_to_cross_human_range * 365)
 
 
-N_SIMS = 1000
-days_taken = []
-years_taken = []
-
-
-def generate_takeoff_start(made_up_parameters):
-    # for simplicity let's treat all tasks the same for now
-    # Numbers come from https://docs.google.com/spreadsheets/d/1VdiVeaTHimvz5SzDyghwxsD1D4tcr7KZULL0KiOeDPk/edit#gid=0
-    log_average_capabilities = np.random.normal(0.54, 0.16)
-    average_exp_capabilites = 10 ** log_average_capabilities
-    rand_vars = [np.random.uniform() for _ in range(5)]
-    normalized_exp_capabilties = [tc / sum(rand_vars) for tc in rand_vars]
-    scaled_tcs = [math.log10(tc) for tc in normalized_exp_capabilties]
+def generate_capabilities_starting_point(made_up_parameters):
+    # Tasks come from Joe Carlsmith's report
+    # https://docs.google.com/document/d/1smaI1lagHHcrhoi6ohdq3TYIZv0eNWWZMPEy8C8byYg/edit#heading=h.m8h4m2hdkr0u
+    # with a few minor modifications
     return [
         Task(
             description="Scientific research",
-            capability=scaled_tcs[0],
             made_up_parameters=made_up_parameters,
         ),
         Task(
-            description="Engineering",
-            capability=scaled_tcs[1],
+            description="Software engineering",
+            made_up_parameters=made_up_parameters,
+        ),
+        Task(
+            description="Hardware engineering",
+            made_up_parameters=made_up_parameters,
+        ),
+        Task(
+            description="Physical engineering",
             made_up_parameters=made_up_parameters,
         ),
         Task(
             description="Strategy",
-            capability=scaled_tcs[2],
             made_up_parameters=made_up_parameters,
         ),
         Task(
             description="Hacking",
-            capability=scaled_tcs[3],
             made_up_parameters=made_up_parameters,
         ),
         Task(
             description="Persuasion",
-            capability=scaled_tcs[4],
             made_up_parameters=made_up_parameters,
         ),
     ]
 
 
-def generate_takeoff_end(made_up_parameters):
-    # for simplicity let's treat all tasks the same for now
-    # Numbers come from https://docs.google.com/spreadsheets/d/1VdiVeaTHimvz5SzDyghwxsD1D4tcr7KZULL0KiOeDPk/edit#gid=0
-    log_average_capabilities = np.random.normal(1.41, 0.60)
-    average_exp_capabilites = 10 ** log_average_capabilities
-    rand_vars = [np.random.uniform() for _ in range(5)]
-    normalized_exp_capabilties = [tc / sum(rand_vars) for tc in rand_vars]
-    scaled_tcs = [math.log10(tc) for tc in normalized_exp_capabilties]
-    return [
-        Task(
-            description="Scientific research",
-            capability=scaled_tcs[0],
-            made_up_parameters=made_up_parameters,
-        ),
-        Task(
-            description="Engineering",
-            capability=scaled_tcs[1],
-            made_up_parameters=made_up_parameters,
-        ),
-        Task(
-            description="Strategy",
-            capability=scaled_tcs[2],
-            made_up_parameters=made_up_parameters,
-        ),
-        Task(
-            description="Hacking",
-            capability=scaled_tcs[3],
-            made_up_parameters=made_up_parameters,
-        ),
-        Task(
-            description="Persuasion",
-            capability=scaled_tcs[4],
-            made_up_parameters=made_up_parameters,
-        ),
-    ]
+# a bit confusingly named, capabilities need to have only passed one of the conditions
+def have_capabilities_passed_conditions(
+    task_list: List[Task], conditions: List[Dict[TaskDescription, float]]
+):
+    for condition in conditions:
+        condition_met = True
+        for desc, threshold in condition.items():
+            task = [t for t in task_list if t.description == desc][0]
+            if task.capability < threshold:
+                condition_met = False
+                break
+        if condition_met:
+            return True
+    return False
 
 
-def is_takeoff_over(tc_cur, tc_end):
-    for i in range(len(tc_cur)):
-        if tc_cur[i].capability < tc_end[i].capability:
-            return False
-    return True
-
-
-def capability_increase_step(tc_cur, made_up_parameters):
+def capability_increase_step(
+    task_list: List[Task], made_up_parameters: MadeUpParameters
+):
     # speeed up based on progress in scientific research and engineering, the tasks relevant for speeding up AI research
-    increase_factor = max((tc_cur[0].capability + 1) * (tc_cur[1].capability + 1), 1)
+    increase_factor = max(
+        (task_list[0].capability + 1) * (task_list[1].capability + 1), 1
+    )
 
-    for task in tc_cur:
+    for task in task_list:
         task.capability = (
             task.capability + task.default_progress_in_a_day * increase_factor
         )
 
 
-for _ in range(N_SIMS):
-    made_up_parameters = MadeUpParameters()
-    # print(made_up_parameters)
+def main():
+    years_taken = []
 
-    tc_0 = generate_takeoff_start(made_up_parameters)
-    tc_end = generate_takeoff_end(made_up_parameters)
+    for _ in range(MadeUpParameters().N_SIMS):
+        made_up_parameters = MadeUpParameters()
+        # print(made_up_parameters)
 
-    days = 0
-    tc_cur = tc_0
+        task_list = generate_capabilities_starting_point(made_up_parameters)
 
-    while True:
-        if is_takeoff_over(tc_cur, tc_end):
-            break
-        capability_increase_step(tc_cur, made_up_parameters)
-        days += 1
+        days = 0
+        start_day = 0
 
-    days_taken.append(days)
-    years_taken.append(days / 365)
+        while True:
+            if start_day == 0 and have_capabilities_passed_conditions(
+                task_list, made_up_parameters.takeoff_startpoint_conditions
+            ):
+                start_day = days
+            if have_capabilities_passed_conditions(
+                task_list, made_up_parameters.takeoff_endpoint_conditions
+            ):
+                break
+            capability_increase_step(task_list, made_up_parameters)
+            days += 1
 
-print(f"Mean: {round(sum(years_taken) / len(years_taken), 2)} years")
-print(f"Median: {round(statistics.median(years_taken), 2)} years")
-print(f"10th percentile: {round(np.percentile(years_taken, 10), 2)} years")
-print(f"90th percentile: {round(np.percentile(years_taken, 90), 2)} years")
+        takeoff_days = 0 if start_day == 0 else days - start_day
+        years_taken.append(takeoff_days / 365)
+
+    print(f"Mean: {round(sum(years_taken) / len(years_taken), 2)} years")
+    print(f"Median: {round(statistics.median(years_taken), 2)} years")
+    print(f"10th percentile: {round(np.percentile(years_taken, 10), 2)} years")
+    print(f"90th percentile: {round(np.percentile(years_taken, 90), 2)} years")
+
+
+if __name__ == "__main__":
+    main()
