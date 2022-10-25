@@ -4,6 +4,43 @@ import statistics
 import pydantic
 from typing import Optional
 
+# made up parameters = numbers I made up, can adjust based on your own beliefs and see how takeoff distribution changes
+
+
+class MadeUpParameters(pydantic.BaseModel):
+    # default years to cross human range means: how long, without AI automation, would it take for AIs to go from 0th to 100th percentile human capability at a typical task?
+    # In favor of shorter years to cross human range: many challenging NLP benchmarks have moved through human range very quickly recently (<< 4 years)
+    # In favor of longer years to cross human range: some previous AI Impacts investigations found significantly longer time cross human range (often >>4 years).
+    # And maybe some less measurable NLP capabilities are also taking longer (e.g. summarization?)
+    # mean + stdev based on eyeballing what looks roughly reasonable in Squiggle playground, based on uncertainty.
+    # mean of the distribution is 4.5, 10th percentile is 1.2, 90th percentile is 16
+    default_years_to_cross_human_range_lognormal_mean: float = 1.5
+    default_years_to_cross_human_range_lognormal_stdev: float = 1
+    default_years_to_cross_human_range: Optional[
+        float
+    ] = None  # how many years does it take to cross the human range, by default across tasks? calculated in __init__ from above
+    iteration_speed: str = (
+        "DAY"  # how fast do we assume iteration is? can be DAY, WEEK or MONTH
+    )
+
+    def __init__(
+        self,
+        default_years_to_cross_human_range_lognormal_mean=1.5,
+        default_years_to_cross_human_range_lognormal_stdev=1,
+        **data,
+    ):
+        default_years_to_cross_human_range = None
+        default_years_to_cross_human_range = np.random.lognormal(
+            default_years_to_cross_human_range_lognormal_mean,
+            default_years_to_cross_human_range_lognormal_stdev,
+        )
+        super().__init__(
+            default_years_to_cross_human_range=default_years_to_cross_human_range,
+            default_years_to_cross_human_range_lognormal_mean=default_years_to_cross_human_range_lognormal_mean,
+            default_years_to_cross_human_range_lognormal_stdev=default_years_to_cross_human_range_lognormal_stdev,
+            **data,
+        )
+
 
 class Task(pydantic.BaseModel):
     description: str
@@ -34,6 +71,7 @@ class Task(pydantic.BaseModel):
         super().__init__(
             years_to_cross_human_range=years_to_cross_human_range,
             years_to_cross_human_range_mean=years_to_cross_human_range_mean,
+            years_to_cross_human_range_stdev=years_to_cross_human_range_stdev,
             **data,
         )
 
@@ -86,9 +124,10 @@ def is_takeoff_over(tc_cur, tc_end):
     return True
 
 
-def capability_increase_step(tc_cur):
-    default_yrs_to_cross_human_range = 4
-    default_progress_in_day = 1 / (default_yrs_to_cross_human_range * 365)
+def capability_increase_step(tc_cur, made_up_parameters):
+    default_progress_in_day = 1 / (
+        made_up_parameters.default_years_to_cross_human_range * 365
+    )
     # speeed up based on progress relevant for speeding up AI research
     increase_factor = max((tc_cur[0].capability + 1) * (tc_cur[1].capability + 1), 1)
 
@@ -97,6 +136,9 @@ def capability_increase_step(tc_cur):
 
 
 for _ in range(N_SIMS):
+    made_up_parameters = MadeUpParameters()
+    print(made_up_parameters)
+
     tc_0 = generate_takeoff_start()
     tc_end = generate_takeoff_end()
 
@@ -106,7 +148,7 @@ for _ in range(N_SIMS):
     while True:
         if is_takeoff_over(tc_cur, tc_end):
             break
-        capability_increase_step(tc_cur)
+        capability_increase_step(tc_cur, made_up_parameters)
         days += 1
 
     days_taken.append(days)

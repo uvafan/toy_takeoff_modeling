@@ -3,3 +3,10 @@
 A dumb/hacky but hopefully useful toy model of [AI takeoff](https://www.alignmentforum.org/tag/ai-takeoff).
 
 Code written by Eli Lifland. Building off a weekend project in collaboration with J.J. Andrade, Trevor Levin, and Katherine Chou.
+
+To run, clone this repo then install pyenv and poetry and then:
+```
+pyenv install 3.9.5 && pyenv local 3.9.5
+poetry install
+poetry run python run_takeoff_model.py
+```
