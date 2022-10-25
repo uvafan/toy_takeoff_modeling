@@ -4,7 +4,7 @@ A dumb/hacky but hopefully useful toy model of [AI takeoff](https://www.alignmen
 
 Code written by Eli Lifland. Building off a weekend project in which I collaborated with J.J. Andrade, Trevor Levin, and Katherine Chou.
 
-To run, clone this repo then install pyenv and poetry and then:
+To run, clone this repo then install pyenv and poetry then:
 ```
 pyenv install 3.9.5 && pyenv local 3.9.5
 poetry install
@@ -15,3 +15,5 @@ With default settings the model outputs something like:
 ```
 TODO
 ```
+
+You can tweak parameters based on your beliefs by changing the values in the `MadeUpParameters` class.
