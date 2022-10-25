@@ -6,10 +6,35 @@ category = "main"
 optional = false
 python-versions = ">=3.8"
 
+[[package]]
+name = "pydantic"
+version = "1.10.2"
+description = "Data validation and settings management using python type hints"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[package.dependencies]
+typing-extensions = ">=4.1.0"
+
+[package.extras]
+dotenv = ["python-dotenv (>=0.10.4)"]
+email = ["email-validator (>=1.0.3)"]
+
+[[package]]
+name = "typing-extensions"
+version = "4.4.0"
+description = "Backported and Experimental Type Hints for Python 3.7+"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "df4d4b3df7cf01970f6fd5781f99c9d532454deaee4cfe045978927e0c3b553d"
+content-hash = "da4c2a5edef51e709a1a78c0465315be1ee51c8b9386642f18c5f991441caa8f"
 
 [metadata.files]
 numpy = []
+pydantic = []
+typing-extensions = []
