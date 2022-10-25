@@ -15,3 +15,5 @@ With default settings the model outputs something like:
 ```
 TODO
 ```
+
+You can tweak parameters based on your beliefs by changing the values in the `MadeUpParameters` class.
