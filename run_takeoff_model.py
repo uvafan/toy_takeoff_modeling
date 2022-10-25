@@ -4,21 +4,24 @@ import statistics
 import pydantic
 from typing import Optional
 
-# made up parameters = numbers I made up, can adjust based on your own beliefs and see how takeoff distribution changes
-
-
+# made up parameters = numbers I made up based on my rough beliefs, can adjust based on your own beliefs and see how takeoff distribution changes
 class MadeUpParameters(pydantic.BaseModel):
     # default years to cross human range means: how long, without AI automation, would it take for AIs to go from 0th to 100th percentile human capability at a typical task?
     # In favor of shorter years to cross human range: many challenging NLP benchmarks have moved through human range very quickly recently (<< 4 years)
     # In favor of longer years to cross human range: some previous AI Impacts investigations found significantly longer time cross human range (often >>4 years).
     # And maybe some less measurable NLP capabilities are also taking longer (e.g. summarization?)
     # mean + stdev based on eyeballing what looks roughly reasonable in Squiggle playground, based on uncertainty.
-    # mean of the distribution is 4.5, 10th percentile is 1.2, 90th percentile is 16
+    # median of the distribution is 4.5, 10th percentile is 1.2, 90th percentile is 16
     default_years_to_cross_human_range_lognormal_mean: float = 1.5
     default_years_to_cross_human_range_lognormal_stdev: float = 1
-    default_years_to_cross_human_range: Optional[
-        float
-    ] = None  # how many years does it take to cross the human range, by default across tasks? calculated in __init__ from above
+
+    # how many years does it take to cross the human range, by default across tasks? calculated in __init__ from above
+    default_years_to_cross_human_range: float = 4.5
+
+    # how much correlation is there between how much time it takes to cross the human range across various tasks?
+    # 0 = perfectly correlated, larger numbers mean higher stdev when generating this parameter for each task
+    default_years_to_cross_human_range_stdev_across_tasks: float = 0.3
+
     iteration_speed: str = (
         "DAY"  # how fast do we assume iteration is? can be DAY, WEEK or MONTH
     )
@@ -47,33 +50,31 @@ class Task(pydantic.BaseModel):
     capability: Optional[
         float
     ] = None  # 0 = 0th percentile human, 1 = 100th percentile human, outside 0-1 = roughly extrapolating from this
-    years_to_cross_human_range_mean: Optional[
-        float
-    ] = None  # mean of distribution for how long it will take to cross human range
-    years_to_cross_human_range_stdev: Optional[
-        float
-    ] = None  # standard deviation of distribution for how long it will take to cross human range
+    made_up_parameters: MadeUpParameters
     years_to_cross_human_range: Optional[
         float
-    ] = None  # With no AI automation, how long would it take to cross human range for this task
+    ] = None  # With no AI automation, how long would it take to cross human range for this task? calculated in init
 
     def __init__(
         self,
-        years_to_cross_human_range_mean=None,
-        years_to_cross_human_range_stdev=None,
+        made_up_parameters: MadeUpParameters,
         **data,
     ):
-        years_to_cross_human_range = None
-        if years_to_cross_human_range_mean and years_to_cross_human_range_stdev:
-            years_to_cross_human_range = np.random.normal(
-                years_to_cross_human_range_mean, years_to_cross_human_range_stdev
-            )
         super().__init__(
-            years_to_cross_human_range=years_to_cross_human_range,
-            years_to_cross_human_range_mean=years_to_cross_human_range_mean,
-            years_to_cross_human_range_stdev=years_to_cross_human_range_stdev,
+            made_up_parameters=made_up_parameters,
+            years_to_cross_human_range=max(
+                np.random.normal(
+                    made_up_parameters.default_years_to_cross_human_range,
+                    made_up_parameters.default_years_to_cross_human_range_stdev_across_tasks,
+                ),
+                0.0001,
+            ),
             **data,
         )
+
+    @property
+    def default_progress_in_a_day(self):
+        return 1 / (self.years_to_cross_human_range * 365)
 
 
 N_SIMS = 1000
@@ -81,9 +82,8 @@ days_taken = []
 years_taken = []
 
 
-def generate_takeoff_start():
-    # skills are research, eng, strategy, hacking, persuasion
-    # for simpllicitly let's treat them all as the same for now
+def generate_takeoff_start(made_up_parameters):
+    # for simplicity let's treat all tasks the same for now
     # Numbers come from https://docs.google.com/spreadsheets/d/1VdiVeaTHimvz5SzDyghwxsD1D4tcr7KZULL0KiOeDPk/edit#gid=0
     log_average_capabilities = np.random.normal(0.54, 0.16)
     average_exp_capabilites = 10 ** log_average_capabilities
@@ -91,17 +91,36 @@ def generate_takeoff_start():
     normalized_exp_capabilties = [tc / sum(rand_vars) for tc in rand_vars]
     scaled_tcs = [math.log10(tc) for tc in normalized_exp_capabilties]
     return [
-        Task(description="Scientific research", capability=scaled_tcs[0]),
-        Task(description="Engineering", capability=scaled_tcs[1]),
-        Task(description="Strategy", capability=scaled_tcs[2]),
-        Task(description="Hacking", capability=scaled_tcs[3]),
-        Task(description="Persuasion", capability=scaled_tcs[4]),
+        Task(
+            description="Scientific research",
+            capability=scaled_tcs[0],
+            made_up_parameters=made_up_parameters,
+        ),
+        Task(
+            description="Engineering",
+            capability=scaled_tcs[1],
+            made_up_parameters=made_up_parameters,
+        ),
+        Task(
+            description="Strategy",
+            capability=scaled_tcs[2],
+            made_up_parameters=made_up_parameters,
+        ),
+        Task(
+            description="Hacking",
+            capability=scaled_tcs[3],
+            made_up_parameters=made_up_parameters,
+        ),
+        Task(
+            description="Persuasion",
+            capability=scaled_tcs[4],
+            made_up_parameters=made_up_parameters,
+        ),
     ]
 
 
-def generate_takeoff_end():
-    # skills are research, eng, strategy, hacking, persuasion
-    # for simpllicitly let's treat them all as the same for now
+def generate_takeoff_end(made_up_parameters):
+    # for simplicity let's treat all tasks the same for now
     # Numbers come from https://docs.google.com/spreadsheets/d/1VdiVeaTHimvz5SzDyghwxsD1D4tcr7KZULL0KiOeDPk/edit#gid=0
     log_average_capabilities = np.random.normal(1.41, 0.60)
     average_exp_capabilites = 10 ** log_average_capabilities
@@ -109,11 +128,31 @@ def generate_takeoff_end():
     normalized_exp_capabilties = [tc / sum(rand_vars) for tc in rand_vars]
     scaled_tcs = [math.log10(tc) for tc in normalized_exp_capabilties]
     return [
-        Task(description="Scientific research", capability=scaled_tcs[0]),
-        Task(description="Engineering", capability=scaled_tcs[1]),
-        Task(description="Strategy", capability=scaled_tcs[2]),
-        Task(description="Hacking", capability=scaled_tcs[3]),
-        Task(description="Persuasion", capability=scaled_tcs[4]),
+        Task(
+            description="Scientific research",
+            capability=scaled_tcs[0],
+            made_up_parameters=made_up_parameters,
+        ),
+        Task(
+            description="Engineering",
+            capability=scaled_tcs[1],
+            made_up_parameters=made_up_parameters,
+        ),
+        Task(
+            description="Strategy",
+            capability=scaled_tcs[2],
+            made_up_parameters=made_up_parameters,
+        ),
+        Task(
+            description="Hacking",
+            capability=scaled_tcs[3],
+            made_up_parameters=made_up_parameters,
+        ),
+        Task(
+            description="Persuasion",
+            capability=scaled_tcs[4],
+            made_up_parameters=made_up_parameters,
+        ),
     ]
 
 
@@ -125,22 +164,21 @@ def is_takeoff_over(tc_cur, tc_end):
 
 
 def capability_increase_step(tc_cur, made_up_parameters):
-    default_progress_in_day = 1 / (
-        made_up_parameters.default_years_to_cross_human_range * 365
-    )
-    # speeed up based on progress relevant for speeding up AI research
+    # speeed up based on progress in scientific research and engineering, the tasks relevant for speeding up AI research
     increase_factor = max((tc_cur[0].capability + 1) * (tc_cur[1].capability + 1), 1)
 
     for task in tc_cur:
-        task.capability = task.capability + default_progress_in_day * increase_factor
+        task.capability = (
+            task.capability + task.default_progress_in_a_day * increase_factor
+        )
 
 
 for _ in range(N_SIMS):
     made_up_parameters = MadeUpParameters()
-    print(made_up_parameters)
+    # print(made_up_parameters)
 
-    tc_0 = generate_takeoff_start()
-    tc_end = generate_takeoff_end()
+    tc_0 = generate_takeoff_start(made_up_parameters)
+    tc_end = generate_takeoff_end(made_up_parameters)
 
     days = 0
     tc_cur = tc_0
