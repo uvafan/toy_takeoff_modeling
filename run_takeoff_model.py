@@ -36,9 +36,9 @@ class MadeUpParameters(pydantic.BaseModel):
     # how much variation there is between starting capability level across tasks
     starting_capability_stdev: float = 0.3
 
-    iteration_speed: str = (
-        "DAY"  # how fast do we assume iteration is? can be DAY, WEEK or MONTH
-    )
+    # TODO how fast do we assume iteration is? can be DAY, WEEK or MONTH
+    # NOTE THAT ONLY DAY IS IMPLEMENTED FOR NOW, CHANGING THIS DOES NOTHING
+    iteration_speed: str = "DAY"
 
     # See https://docs.google.com/spreadsheets/d/1u6SsZcnAjahh7wsh0cbldVaXSHXbFLarBeu7t4jyf7E/edit#gid=0 for context
     takeoff_startpoint_conditions: List[Dict[TaskDescription, float]] = [
@@ -53,8 +53,23 @@ class MadeUpParameters(pydantic.BaseModel):
         },
         {"Physical engineering": 1},
     ]
-    alignment_research_startpoint_conditions: List[Dict[TaskDescription, float]] = [
+    automating_alignment_startpoint_conditions: List[Dict[TaskDescription, float]] = [
         {"Scientific research": 1.1, "Software engineering": 0.99, "Strategy": 0.95},
+    ]
+    public_awareness_startpoint_conditions: List[Dict[TaskDescription, float]] = [
+        {"Hacking": 1.1},
+        {"Strategy": 1},
+    ]
+    economic_transformation_startpoint_conditions: List[
+        Dict[TaskDescription, float]
+    ] = [
+        {"Strategy": 1},
+        {
+            "Scientific research": 1,
+            "Software engineering": 1,
+            "Hardware engineering": 1,
+        },
+        {"Physical engineering": 1},
     ]
     takeoff_endpoint_conditions: List[Dict[TaskDescription, float]] = [
         {"Physical engineering": 3, "Strategy": 1.5},
@@ -201,7 +216,10 @@ def capability_increase_step(
 
 
 def main():
-    years_taken = []
+    any_takeoff_years_taken = []
+    automating_alignment_takeoff_years_taken = []
+    public_awareness_takeoff_years_taken = []
+    economic_transformation_takeoff_years_taken = []
 
     for _ in range(MadeUpParameters().N_SIMS):
         made_up_parameters = MadeUpParameters()
@@ -210,13 +228,39 @@ def main():
         task_list = generate_capabilities_starting_point(made_up_parameters)
 
         days = 0
-        start_day = 0
+        any_takeoff_start_day = 0
+        automating_alignment_takeoff_start_day = 0
+        public_awareness_takeoff_start_day = 0
+        economic_transformation_takeoff_start_day = 0
 
         while True:
-            if start_day == 0 and have_capabilities_passed_conditions(
+            if any_takeoff_start_day == 0 and have_capabilities_passed_conditions(
                 task_list, made_up_parameters.takeoff_startpoint_conditions
             ):
-                start_day = days
+                any_takeoff_start_day = days
+            if (
+                automating_alignment_takeoff_start_day == 0
+                and have_capabilities_passed_conditions(
+                    task_list,
+                    made_up_parameters.automating_alignment_startpoint_conditions,
+                )
+            ):
+                automating_alignment_takeoff_start_day = days
+            if (
+                public_awareness_takeoff_start_day == 0
+                and have_capabilities_passed_conditions(
+                    task_list, made_up_parameters.public_awareness_startpoint_conditions
+                )
+            ):
+                public_awareness_takeoff_start_day = days
+            if (
+                economic_transformation_takeoff_start_day == 0
+                and have_capabilities_passed_conditions(
+                    task_list,
+                    made_up_parameters.economic_transformation_startpoint_conditions,
+                )
+            ):
+                economic_transformation_takeoff_start_day = days
             if have_capabilities_passed_conditions(
                 task_list, made_up_parameters.takeoff_endpoint_conditions
             ):
@@ -224,13 +268,92 @@ def main():
             capability_increase_step(task_list, made_up_parameters)
             days += 1
 
-        takeoff_days = 0 if start_day == 0 else days - start_day
-        years_taken.append(takeoff_days / 365)
+        any_takeoff_days = (
+            0 if any_takeoff_start_day == 0 else days - any_takeoff_start_day
+        )
+        any_takeoff_years_taken.append(any_takeoff_days / 365)
+        automating_alignment_takeoff_days = (
+            0
+            if automating_alignment_takeoff_start_day == 0
+            else days - automating_alignment_takeoff_start_day
+        )
+        automating_alignment_takeoff_years_taken.append(
+            automating_alignment_takeoff_days / 365
+        )
+        public_awareness_takeoff_days = (
+            0
+            if public_awareness_takeoff_start_day == 0
+            else days - public_awareness_takeoff_start_day
+        )
+        public_awareness_takeoff_years_taken.append(public_awareness_takeoff_days / 365)
+        economic_transformation_takeoff_days = (
+            0
+            if economic_transformation_takeoff_start_day == 0
+            else days - economic_transformation_takeoff_start_day
+        )
+        economic_transformation_takeoff_years_taken.append(
+            economic_transformation_takeoff_days / 365
+        )
 
-    print(f"Mean: {round(sum(years_taken) / len(years_taken), 2)} years")
-    print(f"Median: {round(statistics.median(years_taken), 2)} years")
-    print(f"10th percentile: {round(np.percentile(years_taken, 10), 2)} years")
-    print(f"90th percentile: {round(np.percentile(years_taken, 90), 2)} years")
+    print("Time from any startpoint to AI plausibly being able to disempower humanity:")
+    print(
+        f"Mean: {round(sum(any_takeoff_years_taken) / len(any_takeoff_years_taken), 2)} years"
+    )
+    print(f"Median: {round(statistics.median(any_takeoff_years_taken), 2)} years")
+    print(
+        f"10th percentile: {round(np.percentile(any_takeoff_years_taken, 10), 2)} years"
+    )
+    print(
+        f"90th percentile: {round(np.percentile(any_takeoff_years_taken, 90), 2)} years"
+    )
+
+    print(
+        "Time from very large AI-assisted alignment research speedup to AI plausibly being able to disempower humanity:"
+    )
+    print(
+        f"Mean: {round(sum(automating_alignment_takeoff_years_taken) / len(automating_alignment_takeoff_years_taken), 2)} years"
+    )
+    print(
+        f"Median: {round(statistics.median(automating_alignment_takeoff_years_taken), 2)} years"
+    )
+    print(
+        f"10th percentile: {round(np.percentile(automating_alignment_takeoff_years_taken, 10), 2)} years"
+    )
+    print(
+        f"90th percentile: {round(np.percentile(automating_alignment_takeoff_years_taken, 90), 2)} years"
+    )
+
+    print(
+        "Time from very high public awareness of AI to AI plausibly being able to disempower humanity:"
+    )
+    print(
+        f"Mean: {round(sum(public_awareness_takeoff_years_taken) / len(public_awareness_takeoff_years_taken), 2)} years"
+    )
+    print(
+        f"Median: {round(statistics.median(public_awareness_takeoff_years_taken), 2)} years"
+    )
+    print(
+        f"10th percentile: {round(np.percentile(public_awareness_takeoff_years_taken, 10), 2)} years"
+    )
+    print(
+        f"90th percentile: {round(np.percentile(public_awareness_takeoff_years_taken, 90), 2)} years"
+    )
+
+    print(
+        "Time from potential economic transformation (not taking into account deployment lags or regulations) to AI plausibly being able to disempower humanity:"
+    )
+    print(
+        f"Mean: {round(sum(economic_transformation_takeoff_years_taken) / len(economic_transformation_takeoff_years_taken), 2)} years"
+    )
+    print(
+        f"Median: {round(statistics.median(economic_transformation_takeoff_years_taken), 2)} years"
+    )
+    print(
+        f"10th percentile: {round(np.percentile(economic_transformation_takeoff_years_taken, 10), 2)} years"
+    )
+    print(
+        f"90th percentile: {round(np.percentile(economic_transformation_takeoff_years_taken, 90), 2)} years"
+    )
 
 
 if __name__ == "__main__":
