@@ -2,6 +2,7 @@ import numpy as np
 import math
 import statistics
 import pydantic
+import time
 from typing import Optional, Literal, List, Dict
 
 
@@ -54,7 +55,7 @@ class MadeUpParameters(pydantic.BaseModel):
         {"Physical engineering": 1},
     ]
     automating_alignment_startpoint_conditions: List[Dict[TaskDescription, float]] = [
-        {"Scientific research": 1.1, "Software engineering": 0.99, "Strategy": 0.95},
+        {"Scientific research": 1.05, "Software engineering": 0.99, "Strategy": 0.95},
     ]
     public_awareness_startpoint_conditions: List[Dict[TaskDescription, float]] = [
         {"Hacking": 1.1},
@@ -93,24 +94,45 @@ class MadeUpParameters(pydantic.BaseModel):
         },
     ]
 
+    # parameter for how steep the marginal returns are
+    # to increased intelligence near the human range
+    # the higher the exponent, the steeper the translation
+    # between progress near the human range to AI R&D
+    # Would also be more small the more you think
+    # AI R&D involves more uncorrelated tasks,
+    # which are more bottlenecked on each other.
+    # mean + stdev based on eyeballing what looks roughly reasonable in Squiggle playground, based on uncertainty.
+    # median of the distribution is 4.5, 10th percentile is 1.6, 90th percentile is 12
+    marginal_returns_to_intelligence_exponent_lognormal_mean: float = 1.5
+    marginal_returns_to_intelligence_exponent_lognormal_stdev: float = 0.8
+    marginal_returns_to_intelligence_exponent: float = 4.5
+
     # How many simluations to run
-    N_SIMS = 100
+    N_SIMS = 1000
 
     def __init__(
         self,
         default_years_to_cross_human_range_lognormal_mean=1.5,
         default_years_to_cross_human_range_lognormal_stdev=1,
+        marginal_returns_to_intelligence_exponent_lognormal_mean=1.5,
+        marginal_returns_to_intelligence_exponent_lognormal_stdev=0.8,
         **data,
     ):
-        default_years_to_cross_human_range = None
         default_years_to_cross_human_range = np.random.lognormal(
             default_years_to_cross_human_range_lognormal_mean,
             default_years_to_cross_human_range_lognormal_stdev,
+        )
+        marginal_returns_to_intelligence_exponent = np.random.lognormal(
+            marginal_returns_to_intelligence_exponent_lognormal_mean,
+            marginal_returns_to_intelligence_exponent_lognormal_stdev,
         )
         super().__init__(
             default_years_to_cross_human_range=default_years_to_cross_human_range,
             default_years_to_cross_human_range_lognormal_mean=default_years_to_cross_human_range_lognormal_mean,
             default_years_to_cross_human_range_lognormal_stdev=default_years_to_cross_human_range_lognormal_stdev,
+            marginal_returns_to_intelligence_exponent=marginal_returns_to_intelligence_exponent,
+            marginal_returns_to_intelligence_exponent_lognormal_mean=marginal_returns_to_intelligence_exponent_lognormal_mean,
+            marginal_returns_to_intelligence_exponent_lognormal_stdev=marginal_returns_to_intelligence_exponent_lognormal_stdev,
             **data,
         )
 
@@ -204,10 +226,53 @@ def have_capabilities_passed_conditions(
 def capability_increase_step(
     task_list: List[Task], made_up_parameters: MadeUpParameters
 ):
-    # speeed up based on progress in scientific research and engineering, the tasks relevant for speeding up AI research
-    increase_factor = max(
-        (task_list[0].capability + 1) * (task_list[1].capability + 1), 1
-    )
+    research_capability = [
+        t for t in task_list if t.description == "Scientific research"
+    ][0].capability
+    software_eng_capability = [
+        t for t in task_list if t.description == "Software engineering"
+    ][0].capability
+    hardware_eng_capability = [
+        t for t in task_list if t.description == "Hardware engineering"
+    ][0].capability
+
+    increase_factor = 1
+
+    # hacky check to avoid issues with complex numbers
+    if min(research_capability, software_eng_capability, hardware_eng_capability) > 0:
+
+        # calculate separate speedup in capability improvement for software improvements vs. hardware improvements
+        software_multiplier = (
+            (
+                research_capability
+                ** made_up_parameters.marginal_returns_to_intelligence_exponent
+            )
+            + (
+                software_eng_capability
+                ** made_up_parameters.marginal_returns_to_intelligence_exponent
+            )
+        ) / 2
+        hardware_multiplier = (
+            (
+                research_capability
+                ** made_up_parameters.marginal_returns_to_intelligence_exponent
+            )
+            + (
+                hardware_eng_capability
+                ** made_up_parameters.marginal_returns_to_intelligence_exponent
+            )
+        ) / 2
+
+        increase_factor = max((software_multiplier + hardware_multiplier) / 2, 1)
+
+        # print(
+        #     research_capability,
+        #     software_eng_capability,
+        #     hardware_eng_capability,
+        #     software_multiplier,
+        #     hardware_multiplier,
+        #     increase_factor,
+        # )
 
     for task in task_list:
         task.capability = (
@@ -216,6 +281,8 @@ def capability_increase_step(
 
 
 def main():
+    s = time.time()
+
     any_takeoff_years_taken = []
     automating_alignment_takeoff_years_taken = []
     public_awareness_takeoff_years_taken = []
@@ -295,6 +362,10 @@ def main():
             economic_transformation_takeoff_days / 365
         )
 
+    print(
+        f"Ran {made_up_parameters.N_SIMS} simluations in {round(time.time() - s, 2)} seconds\n"
+    )
+
     print("Time from any startpoint to AI plausibly being able to disempower humanity:")
     print(
         f"Mean: {round(sum(any_takeoff_years_taken) / len(any_takeoff_years_taken), 2)} years"
@@ -304,7 +375,7 @@ def main():
         f"10th percentile: {round(np.percentile(any_takeoff_years_taken, 10), 2)} years"
     )
     print(
-        f"90th percentile: {round(np.percentile(any_takeoff_years_taken, 90), 2)} years"
+        f"90th percentile: {round(np.percentile(any_takeoff_years_taken, 90), 2)} years\n"
     )
 
     print(
@@ -320,7 +391,7 @@ def main():
         f"10th percentile: {round(np.percentile(automating_alignment_takeoff_years_taken, 10), 2)} years"
     )
     print(
-        f"90th percentile: {round(np.percentile(automating_alignment_takeoff_years_taken, 90), 2)} years"
+        f"90th percentile: {round(np.percentile(automating_alignment_takeoff_years_taken, 90), 2)} years\n"
     )
 
     print(
@@ -336,7 +407,7 @@ def main():
         f"10th percentile: {round(np.percentile(public_awareness_takeoff_years_taken, 10), 2)} years"
     )
     print(
-        f"90th percentile: {round(np.percentile(public_awareness_takeoff_years_taken, 90), 2)} years"
+        f"90th percentile: {round(np.percentile(public_awareness_takeoff_years_taken, 90), 2)} years\n"
     )
 
     print(
