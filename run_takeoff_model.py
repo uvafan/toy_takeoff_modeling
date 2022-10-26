@@ -379,7 +379,7 @@ def main():
     )
 
     print(
-        "Time from very large AI-assisted alignment research speedup to AI plausibly being able to disempower humanity:"
+        "Time from very large gains from AI-assisted alignment research speedup to AI plausibly being able to disempower humanity:"
     )
     print(
         f"Mean: {round(sum(automating_alignment_takeoff_years_taken) / len(automating_alignment_takeoff_years_taken), 2)} years"

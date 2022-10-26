@@ -21,7 +21,7 @@ Median: 1.81 years
 10th percentile: 0.11 years
 90th percentile: 8.54 years
 
-Time from very large AI-assisted alignment research speedup to AI plausibly being able to disempower humanity:
+Time from very large gains from AI-assisted alignment research speedup to AI plausibly being able to disempower humanity:
 Mean: 1.02 years
 Median: 0.29 years
 10th percentile: 0.0 years
