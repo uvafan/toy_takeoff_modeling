@@ -40,4 +40,4 @@ Median: 1.42 years
 90th percentile: 7.62 years
 ```
 
-You can tweak parameters based on your beliefs by changing the values in the `MadeUpParameters` class.
+You can tweak parameters based on your beliefs by changing the values in the [`MadeUpParameters` class](https://github.com/uvafan/toy_takeoff_modeling/blob/main/run_takeoff_model.py#L20).
